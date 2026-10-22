@@ -48,7 +48,7 @@ function show(s) {
   const top = sorted[0].score, leaders = sorted.filter((p) => p.score === top).length;
   const games = '<span class="games">🎮 HEUTE: ' + GAMES.map((g, i) => i === s.game ? `<b>▶ ${esc(g)}</b>` : esc(g)).join(' <i>·</i> ') + '</span><span class="sep">◆</span>';
   const tie = leaders === sorted.length && top !== 0;
-  const html = `<span class="game">🏆 SGM CHALLENGE-ABE</span>` + (tie ? '<span class="tie">🤝 IT'S A TIE! NOBODY WINS!!! 😂</span><span class="sep">◆</span>' : '') +
+  const html = `<span class="game">🏆 SGM CHALLENGE-ABE</span>` + (tie ? '<span class="tie">🤝 IT’S A TIE! NOBODY WINS!!! 😂</span><span class="sep">◆</span>' : '') +
     sorted.map((p) => {
       const rank = 1 + sorted.filter((q) => q.score > p.score).length;
       const lead = p.score === top && leaders < sorted.length && top !== 0;
