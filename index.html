@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>SGM Punktestand Laufband</title>
+<!-- In OBS: Browserquelle, "Lokale Datei" = diese Datei, Breite 1880, Höhe 48. -->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,800;1,900&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+.bar { position: absolute; inset: 0; display: flex; align-items: stretch; border-radius: 14px; overflow: hidden;
+  font-family: Montserrat, Arial, sans-serif; color: #fff; font-size: 26px;
+  background: linear-gradient(90deg, rgba(36, 12, 62, .92), rgba(14, 18, 48, .92)); border: 2px solid rgba(255, 255, 255, .16);
+  box-shadow: 0 0 14px rgba(255, 47, 179, .3); }
+.tag { flex: none; display: flex; align-items: center; gap: .45em; padding: 0 .9em; font-weight: 900; font-style: italic; letter-spacing: .08em;
+  background: linear-gradient(90deg, #ff2fb3, #8b3dff); }
+.dot { width: .38em; height: .38em; border-radius: 50%; background: #35d6ff; box-shadow: 0 0 8px #35d6ff; animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.view { position: relative; flex: 1; overflow: hidden; -webkit-mask: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent); mask: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent); }
+.track { position: absolute; top: 0; bottom: 0; left: 0; display: flex; align-items: center; white-space: nowrap; animation: tick 30s linear infinite; }
+@keyframes tick { to { transform: translateX(-50%); } }
+.run { display: flex; align-items: center; padding-right: 2em; font-weight: 800; }
+.it { display: inline-flex; align-items: center; gap: .35em; margin-right: 1.6em; }
+.rk { font-style: italic; font-weight: 900; color: rgba(255, 255, 255, .55); }
+.lead .rk, .lead .sc { color: #ffc83d; }
+.sc { font-weight: 900; padding: .05em .45em; border-radius: .4em; background: rgba(255, 255, 255, .1); }
+.it.bump .sc { animation: bump .9s ease; }
+@keyframes bump { 30% { transform: scale(1.35); background: #35d6ff; color: #08061a; } }
+.sep { color: #ff2fb3; margin-right: 1.6em; }
+.game { color: #35d6ff; font-style: italic; margin-right: 1.6em; }
+.games { margin-right: 1.6em; font-weight: 800; color: #e4d9ff; }
+.games b { color: #ffc83d; font-weight: 900; }
+.games i { color: #ff2fb3; font-style: normal; margin: 0 .2em; }
+</style></head><body>
+<div class="bar">
+  <div class="tag"><span class="dot"></span>PUNKTESTAND</div>
+  <div class="view"><div class="track" id="track"><div class="run" id="run1">Punktestand wird geladen …</div><div class="run" id="run2">Punktestand wird geladen …</div></div></div>
+</div>
+<script>
+// SGM Punktestand-Laufband (StreamElements Custom Widget).
+// Liest den Stand live aus dem ntfy.sh-Kanal, den das SGM-Glücksrad auf Pablos PC bei jeder Änderung füllt.
+const NTFY = 'https://ntfy.sh/sgm-punkte-66d86112163a291f';
+const GAMES = ['F1 25', 'CoD MW III', 'Fortnite Blitz Royale', 'Gun Game'];
+let speed = 90, last = {}, started = false;
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function show(s) {
+  if (!s || !Array.isArray(s.players)) return;
+  const sorted = [...s.players].sort((a, b) => b.score - a.score);
+  const top = sorted[0].score, leaders = sorted.filter((p) => p.score === top).length;
+  const games = '<span class="games">🎮 HEUTE: ' + GAMES.map((g, i) => i === s.game ? `<b>▶ ${esc(g)}</b>` : esc(g)).join(' <i>·</i> ') + '</span><span class="sep">◆</span>';
+  const html = `<span class="game">🏆 SGM CHALLENGE-ABE</span>` +
+    sorted.map((p) => {
+      const rank = 1 + sorted.filter((q) => q.score > p.score).length;
+      const lead = p.score === top && leaders < sorted.length && top !== 0;
+      const bump = last[p.id] !== undefined && last[p.id] !== p.score;
+      return `<span class="it${lead ? ' lead' : ''}${bump ? ' bump' : ''}"><span class="rk">${rank}.</span>${lead ? '👑 ' : ''}${esc(p.name)} <span class="sc">${p.score}</span></span>`;
+    }).join('') + '<span class="sep">◆</span>' + games;
+  sorted.forEach((p) => { last[p.id] = p.score; });
+  document.getElementById('run1').innerHTML = html;
+  document.getElementById('run2').innerHTML = html;
+  const w = document.getElementById('run1').offsetWidth;
+  document.getElementById('track').style.animationDuration = Math.max(6, w / speed) + 's';
+}
+function fromMsg(m) { try { if (m && m.event === 'message' && m.message) show(JSON.parse(m.message)); } catch (e) {} }
+
+function start() {
+  if (started) return; started = true;
+  fetch(NTFY + '/json?poll=1&since=latest').then((r) => r.text()).then((t) => t.trim().split('\n').forEach((l) => { try { fromMsg(JSON.parse(l)); } catch (e) {} })).catch(() => {});
+  const es = new EventSource(NTFY + '/sse');
+  es.onmessage = (ev) => { try { fromMsg(JSON.parse(ev.data)); } catch (e) {} };
+}
+window.addEventListener('onWidgetLoad', (obj) => { const f = (obj.detail && obj.detail.fieldData) || {}; if (f.speed) speed = Number(f.speed); start(); });
+setTimeout(start, 1500); // ausserhalb von StreamElements (Vorschau) direkt starten
+</script></body></html>
